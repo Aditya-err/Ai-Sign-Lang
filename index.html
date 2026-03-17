@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SignLens AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@500;700;800&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset & Design Tokens ───────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+:root{
+  --teal:#1D9E75; --teal-dim:#0F6E56; --teal-glow:rgba(29,158,117,.14);
+  --bg0:#0b0f0d; --bg1:#111714; --bg2:#171d1a; --bg3:#1e2620; --bg4:#252e2a;
+  --tx0:#e8f0ec; --tx1:#b0c4ba; --tx2:#6e8a7e; --tx3:#3d544c;
+  --bdr:rgba(29,158,117,.12); --bdr2:rgba(29,158,117,.22);
+  --mono:'IBM Plex Mono',monospace; --display:'Syne',sans-serif;
+  --rsm:6px; --rmd:10px; --rlg:14px;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--tx0);font-family:var(--mono)}
+
+/* ── Shell ───────────────────────────────────────────────────────────────── */
+.shell{display:flex;flex-direction:column;height:100vh}
+
+/* ── Top Bar ─────────────────────────────────────────────────────────────── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;height:48px;flex-shrink:0;
+  background:var(--bg1);border-bottom:.5px solid var(--bdr);
+}
+.brand{font-family:var(--display);font-size:16px;font-weight:800;letter-spacing:-.5px}
+.brand em{color:var(--teal);font-style:normal}
+.topbar-r{display:flex;align-items:center;gap:14px}
+.sys-badge{font-size:10px;color:var(--tx2);padding:3px 10px;border:.5px solid var(--bdr);border-radius:20px}
+.status-dot{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--tx1)}
+.dot{width:7px;height:7px;border-radius:50%;background:#3d544c;transition:background .3s}
+.dot.active{background:var(--teal);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+
+.body{display:flex;flex:1;overflow:hidden}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar{
+  width:200px;flex-shrink:0;background:var(--bg1);border-right:.5px solid var(--bdr);
+  display:flex;flex-direction:column;padding:12px 0;
+}
+.nav-sec{font-size:9px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;padding:0 16px 8px;margin-top:8px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;
+  font-size:11px;color:var(--tx2);transition:all .15s;border-left:2px solid transparent;
+}
+.nav-item:hover{color:var(--tx0);background:var(--bg2)}
+.nav-item.active{color:var(--teal);background:var(--bg2);border-left:2px solid var(--teal)}
+.nav-num{
+  width:22px;height:22px;border:.5px solid currentColor;border-radius:var(--rsm);
+  display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;opacity:.8;
+}
+.nav-chk{margin-left:auto;font-size:11px;color:var(--teal)}
+.sb-div{height:.5px;background:var(--bdr);margin:10px 16px}
+.sb-footer{margin-top:auto;padding:14px 16px;font-size:9px;color:var(--tx3);line-height:2}
+
+/* ── Content ─────────────────────────────────────────────────────────────── */
+.content{flex:1;overflow-y:auto;padding:20px;background:var(--bg0)}
+.content::-webkit-scrollbar{width:4px}
+.content::-webkit-scrollbar-thumb{background:var(--tx3);border-radius:2px}
+.panel{display:none}
+.panel.active{display:flex;flex-direction:column;gap:14px;animation:fadein .2s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ── Section header ──────────────────────────────────────────────────────── */
+.sec-head{display:flex;align-items:flex-start;justify-content:space-between}
+.sec-title{font-family:var(--display);font-size:18px;font-weight:700;color:var(--tx0)}
+.sec-sub{font-size:11px;color:var(--tx2);margin-top:4px;line-height:1.7;max-width:480px}
+.stage-badge{
+  font-size:9px;padding:4px 10px;border-radius:20px;white-space:nowrap;
+  background:var(--teal-glow);color:var(--teal);border:.5px solid var(--bdr2);
+  letter-spacing:.5px;flex-shrink:0;margin-top:2px;
+}
+
+/* ── Metric cards ────────────────────────────────────────────────────────── */
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mcard{background:var(--bg2);border:.5px solid var(--bdr);border-radius:var(--rmd);padding:14px}
+.mcard-lbl{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.mcard-val{font-family:var(--display);font-size:24px;font-weight:700;color:var(--tx0)}
+.mcard-val.teal{color:var(--teal)}
+.mcard-sub{font-size:10px;color:var(--tx3);margin-top:4px}
+
+/* ── Camera ──────────────────────────────────────────────────────────────── */
+.cam-wrap{
+  background:var(--bg1);border:.5px solid var(--bdr);border-radius:var(--rlg);
+  overflow:hidden;position:relative;flex-shrink:0;
+}
+.cam-wrap img{width:100%;height:100%;object-fit:cover;display:none}
+.cam-placeholder{
+  width:100%;height:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;color:var(--tx3);position:absolute;inset:0;
+}
+.cam-icon{width:52px;height:38px;border:1.5px solid var(--tx3);border-radius:5px;position:relative}
+.cam-icon::after{
+  content:'';width:12px;height:12px;border-radius:50%;background:var(--tx3);
+  position:absolute;inset:0;margin:auto;
+}
+.cam-placeholder span{font-size:11px}
+.corner{position:absolute;width:18px;height:18px;border-color:var(--teal);border-style:solid;border-width:0}
+.corner.tl{top:8px;left:8px;border-top-width:2px;border-left-width:2px}
+.corner.tr{top:8px;right:8px;border-top-width:2px;border-right-width:2px}
+.corner.bl{bottom:8px;left:8px;border-bottom-width:2px;border-left-width:2px}
+.corner.br{bottom:8px;right:8px;border-bottom-width:2px;border-right-width:2px}
+.rec-dot{
+  position:absolute;top:10px;left:10px;width:8px;height:8px;
+  border-radius:50%;background:#E24B4A;display:none;
+  box-shadow:0 0 0 2px rgba(226,75,74,.3);animation:pulse 1.2s infinite;
+}
+.pred-overlay{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  background:rgba(11,15,13,.82);border:.5px solid var(--teal);border-radius:20px;
+  padding:4px 20px;font-family:var(--display);font-size:22px;font-weight:800;
+  color:var(--teal);letter-spacing:3px;display:none;
+}
+.sentence-overlay{
+  position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+  background:rgba(11,15,13,.75);border:.5px solid var(--bdr2);border-radius:var(--rsm);
+  padding:5px 16px;font-size:13px;color:var(--tx0);white-space:nowrap;
+  max-width:90%;overflow:hidden;text-overflow:ellipsis;display:none;
+}
+
+/* ── Confidence bars ─────────────────────────────────────────────────────── */
+.conf-box{background:var(--bg2);border:.5px solid var(--bdr);border-radius:var(--rmd);padding:14px}
+.conf-title{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.conf-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.conf-row:last-child{margin-bottom:0}
+.conf-lbl{font-size:12px;color:var(--tx1);width:24px;text-align:right;flex-shrink:0}
+.conf-track{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.conf-fill{height:100%;border-radius:3px;background:var(--teal);transition:width .35s ease}
+.conf-pct{font-size:10px;color:var(--tx2);min-width:38px;text-align:right}
+
+/* ── Collect cards ───────────────────────────────────────────────────────── */
+.collect-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+.cls-card{
+  background:var(--bg2);border:.5px solid var(--bdr);border-radius:var(--rmd);
+  padding:14px;text-align:center;transition:border-color .2s;
+}
+.cls-card.recording{border-color:var(--teal)}
+.cls-letter{font-family:var(--display);font-size:32px;font-weight:800;color:var(--tx0)}
+.cls-count{font-size:10px;color:var(--tx2);margin-top:4px}
+.cls-bar{height:3px;background:var(--bg3);border-radius:2px;margin-top:10px;overflow:hidden}
+.cls-bar-fill{height:100%;border-radius:2px;background:var(--teal);transition:width .4s ease}
+
+/* ── Progress bar ────────────────────────────────────────────────────────── */
+.prog-wrap{background:var(--bg2);border:.5px solid var(--bdr);border-radius:var(--rmd);padding:14px}
+.prog-head{display:flex;justify-content:space-between;font-size:10px;color:var(--tx2);margin-bottom:10px}
+.prog-track{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.prog-fill{height:100%;border-radius:3px;background:var(--teal);transition:width .5s ease;width:0}
+.prog-nums{display:flex;justify-content:space-between;font-size:9px;color:var(--tx3)}
+
+/* ── Charts ──────────────────────────────────────────────────────────────── */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chart-box{background:var(--bg2);border:.5px solid var(--bdr);border-radius:var(--rmd);padding:12px}
+.chart-lbl{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+
+/* ── TTS pill ────────────────────────────────────────────────────────────── */
+.tts-pill{
+  display:flex;align-items:center;gap:10px;padding:9px 14px;
+  background:var(--bg2);border:.5px solid var(--bdr);border-radius:var(--rmd);
+  font-size:11px;color:var(--tx2);
+}
+.tts-word{color:var(--teal);font-weight:500}
+.tts-meta{margin-left:auto;font-size:9px;color:var(--tx3)}
+.wave{display:flex;gap:2px;align-items:center;height:16px;flex-shrink:0}
+.wave span{width:2px;border-radius:1px;background:var(--teal)}
+.wave.active span:nth-child(1){animation:wv .8s ease-in-out infinite;animation-delay:0s}
+.wave.active span:nth-child(2){animation:wv .8s ease-in-out infinite;animation-delay:.1s}
+.wave.active span:nth-child(3){animation:wv .8s ease-in-out infinite;animation-delay:.2s}
+.wave.active span:nth-child(4){animation:wv .8s ease-in-out infinite;animation-delay:.3s}
+.wave.active span:nth-child(5){animation:wv .8s ease-in-out infinite;animation-delay:.4s}
+.wave span:nth-child(1){height:4px}
+.wave span:nth-child(2){height:10px}
+.wave span:nth-child(3){height:16px}
+.wave span:nth-child(4){height:8px}
+.wave span:nth-child(5){height:4px}
+@keyframes wv{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.9)}}
+
+/* ── Console ─────────────────────────────────────────────────────────────── */
+.console{
+  background:var(--bg1);border:.5px solid var(--bdr);border-radius:var(--rmd);
+  padding:12px;font-size:11px;line-height:1.9;max-height:140px;overflow-y:auto;
+}
+.console::-webkit-scrollbar{width:3px}
+.console::-webkit-scrollbar-thumb{background:var(--tx3);border-radius:2px}
+.log-ts{color:var(--tx3)}
+.log-ok{color:#1D9E75} .log-warn{color:#BA7517} .log-error{color:#E24B4A} .log-info{color:#378ADD}
+
+/* ── Settings ────────────────────────────────────────────────────────────── */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-block{background:var(--bg2);border:.5px solid var(--bdr);border-radius:var(--rmd);padding:14px}
+.field-lbl{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.field-input{
+  width:100%;background:var(--bg3);border:.5px solid var(--bdr2);border-radius:var(--rsm);
+  padding:7px 10px;font-family:var(--mono);font-size:12px;color:var(--tx0);
+  outline:none;transition:border-color .15s;
+}
+.field-input:focus{border-color:var(--teal)}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap}
+.tag{
+  font-size:11px;padding:4px 12px;border:.5px solid var(--bdr2);border-radius:20px;
+  color:var(--tx2);cursor:pointer;transition:all .15s;
+}
+.tag:hover,.tag.on{border-color:var(--teal);color:var(--teal);background:var(--teal-glow)}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.action-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  padding:9px 18px;border-radius:var(--rsm);font-size:11px;font-family:var(--mono);
+  cursor:pointer;border:.5px solid var(--bdr2);background:var(--bg2);color:var(--tx1);
+  transition:all .15s;
+}
+.btn:hover{background:var(--bg3);color:var(--tx0)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
+.btn.primary:hover{background:var(--teal-dim)}
+.btn.danger{border-color:rgba(226,75,74,.3);color:#E24B4A}
+.btn.danger:hover{background:rgba(226,75,74,.08)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="brand"><em>Sign</em>Lens AI</div>
+    <div class="topbar-r">
+      <div class="sys-badge" id="model-badge">model: –</div>
+      <div class="status-dot">
+        <div class="dot" id="status-dot"></div>
+        <span id="status-text">initializing…</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="nav-sec">Pipeline</div>
+      <div class="nav-item active" data-panel="collect" onclick="switchPanel(this)">
+        <div class="nav-num">01</div>Data Collect
+        <span class="nav-chk" id="chk-collect" style="display:none">✓</span>
+      </div>
+      <div class="nav-item" data-panel="train" onclick="switchPanel(this)">
+        <div class="nav-num">02</div>Train Model
+        <span class="nav-chk" id="chk-train" style="display:none">✓</span>
+      </div>
+      <div class="nav-item" data-panel="infer" onclick="switchPanel(this)">
+        <div class="nav-num">03</div>Live Translate
+      </div>
+      <div class="sb-div"></div>
+      <div class="nav-sec">System</div>
+      <div class="nav-item" data-panel="settings" onclick="switchPanel(this)">
+        <div class="nav-num" style="font-size:11px">⚙</div>Settings
+      </div>
+      <div class="sb-footer" id="sb-sysinfo">–</div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- ░░ DATA COLLECTION ░░ -->
+      <div class="panel active" id="panel-collect">
+        <div class="sec-head">
+          <div>
+            <div class="sec-title">Data Collection</div>
+            <div class="sec-sub">Capture hand gesture sequences for each class. 30 videos × 30 frames per class.</div>
+          </div>
+          <div class="stage-badge">STEP 01 / 03</div>
+        </div>
+        <div class="collect-grid" id="collect-cards"></div>
+        <div class="cam-wrap" style="height:200px">
+          <div class="cam-placeholder" id="ph-collect">
+            <div class="cam-icon"></div>
+            <span>Camera inactive — press Start Collection</span>
+          </div>
+          <img id="cam-collect" alt=""/>
+          <div class="rec-dot" id="rec-collect"></div>
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+        </div>
+        <div class="console" id="log-collect"><span style="color:var(--tx3)">Waiting for system…</span></div>
+        <div class="action-row">
+          <button class="btn primary" onclick="startCollect()">▶ Start Collection</button>
+          <button class="btn danger" onclick="stopAll()">⏹ Stop</button>
+        </div>
+      </div>
+
+      <!-- ░░ TRAIN MODEL ░░ -->
+      <div class="panel" id="panel-train">
+        <div class="sec-head">
+          <div>
+            <div class="sec-title">Train Model</div>
+            <div class="sec-sub">LSTM sequence classifier. Up to 2000 epochs with early stopping. Output: action.h5</div>
+          </div>
+          <div class="stage-badge">STEP 02 / 03</div>
+        </div>
+        <div class="metrics">
+          <div class="mcard">
+            <div class="mcard-lbl">Epoch</div>
+            <div class="mcard-val" id="ep-val">–</div>
+            <div class="mcard-sub" id="ep-sub">of –</div>
+          </div>
+          <div class="mcard">
+            <div class="mcard-lbl">Accuracy</div>
+            <div class="mcard-val teal" id="acc-val">–</div>
+            <div class="mcard-sub">categorical</div>
+          </div>
+          <div class="mcard">
+            <div class="mcard-lbl">Loss</div>
+            <div class="mcard-val" id="loss-val">–</div>
+            <div class="mcard-sub">cross-entropy</div>
+          </div>
+        </div>
+        <div class="prog-wrap">
+          <div class="prog-head">
+            <span>Training progress</span><span id="prog-pct">0%</span>
+          </div>
+          <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+          <div class="prog-nums"><span>0</span><span id="prog-mid">–</span><span id="prog-max">–</span></div>
+        </div>
+        <div class="charts-row">
+          <div class="chart-box">
+            <div class="chart-lbl">Loss curve</div>
+            <canvas id="loss-chart" height="80"></canvas>
+          </div>
+          <div class="chart-box">
+            <div class="chart-lbl">Accuracy curve</div>
+            <canvas id="acc-chart" height="80"></canvas>
+          </div>
+        </div>
+        <div class="console" id="log-train"><span style="color:var(--tx3)">Waiting for system…</span></div>
+        <div class="action-row">
+          <button class="btn primary" onclick="startTrain()">▶ Start Training</button>
+          <button class="btn danger" onclick="stopAll()">⏹ Stop</button>
+        </div>
+      </div>
+
+      <!-- ░░ LIVE INFERENCE ░░ -->
+      <div class="panel" id="panel-infer">
+        <div class="sec-head">
+          <div>
+            <div class="sec-title">Live Translation</div>
+            <div class="sec-sub">Real-time gesture recognition. Buffer: 30 frames. TTS speaks each detected sign.</div>
+          </div>
+          <div class="stage-badge">STEP 03 / 03</div>
+        </div>
+        <div class="cam-wrap" style="height:220px;background:#060908">
+          <div class="cam-placeholder" id="ph-infer">
+            <div class="cam-icon"></div>
+            <span>Press Start Camera</span>
+          </div>
+          <img id="cam-infer" alt=""/>
+          <div class="pred-overlay" id="pred-overlay"></div>
+          <div class="sentence-overlay" id="sentence-overlay"></div>
+          <div class="rec-dot" id="rec-infer"></div>
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+        </div>
+        <div class="conf-box">
+          <div class="conf-title">Class Confidence</div>
+          <div id="conf-bars"></div>
+        </div>
+        <div class="tts-pill">
+          <div class="wave" id="tts-wave">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div>TTS — <span class="tts-word" id="tts-word">–</span></div>
+          <div class="tts-meta">pyttsx3 · rate <span id="tts-rate">150</span></div>
+        </div>
+        <div class="metrics">
+          <div class="mcard">
+            <div class="mcard-lbl">Predicted</div>
+            <div class="mcard-val teal" id="inf-pred">–</div>
+            <div class="mcard-sub">current sign</div>
+          </div>
+          <div class="mcard">
+            <div class="mcard-lbl">Confidence</div>
+            <div class="mcard-val" id="inf-conf">–</div>
+            <div class="mcard-sub" id="inf-thresh">threshold: 70%</div>
+          </div>
+          <div class="mcard">
+            <div class="mcard-lbl">Sentence</div>
+            <div class="mcard-val" id="inf-sentence" style="font-size:16px;margin-top:4px;letter-spacing:2px">–</div>
+            <div class="mcard-sub">last 5 signs</div>
+          </div>
+        </div>
+        <div class="action-row">
+          <button class="btn primary" onclick="startInfer()">▶ Start Camera</button>
+          <button class="btn danger" onclick="stopAll()">⏹ Stop</button>
+          <button class="btn" onclick="toggleTTS()">🔊 Toggle TTS</button>
+        </div>
+      </div>
+
+      <!-- ░░ SETTINGS ░░ -->
+      <div class="panel" id="panel-settings">
+        <div class="sec-head">
+          <div>
+            <div class="sec-title">Settings</div>
+            <div class="sec-sub">Configure gesture classes, data paths, training hyperparameters, and inference options.</div>
+          </div>
+          <div class="stage-badge">CONFIG</div>
+        </div>
+        <div class="field-block">
+          <div class="field-lbl">Active gesture classes</div>
+          <div class="tag-row" id="class-tags"></div>
+        </div>
+        <div class="settings-grid">
+          <div class="field-block">
+            <div class="field-lbl">Sequences per class</div>
+            <input class="field-input" id="cfg-no_sequences" type="number" min="5" max="200"/>
+          </div>
+          <div class="field-block">
+            <div class="field-lbl">Frames per sequence</div>
+            <input class="field-input" id="cfg-sequence_length" type="number" min="10" max="120"/>
+          </div>
+          <div class="field-block">
+            <div class="field-lbl">Training epochs</div>
+            <input class="field-input" id="cfg-epochs" type="number" min="100" max="10000"/>
+          </div>
+          <div class="field-block">
+            <div class="field-lbl">Confidence threshold (%)</div>
+            <input class="field-input" id="cfg-confidence_threshold" type="number" min="1" max="100"/>
+          </div>
+          <div class="field-block">
+            <div class="field-lbl">TTS rate (wpm)</div>
+            <input class="field-input" id="cfg-tts_rate" type="number" min="80" max="300"/>
+          </div>
+          <div class="field-block">
+            <div class="field-lbl">TTS enabled</div>
+            <div class="tag-row">
+              <div class="tag" id="tts-tag-on"  onclick="setTTS(true)">On</div>
+              <div class="tag" id="tts-tag-off" onclick="setTTS(false)">Off</div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <div class="field-block">
+            <div class="field-lbl">Data directory</div>
+            <input class="field-input" id="cfg-data_path" type="text"/>
+          </div>
+          <div class="field-block">
+            <div class="field-lbl">Model path</div>
+            <input class="field-input" id="cfg-model_path" type="text"/>
+          </div>
+        </div>
+        <div class="action-row">
+          <button class="btn primary" onclick="saveSettings()">Save Config</button>
+          <button class="btn" onclick="loadSettings()">↺ Reset</button>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /body -->
+</div><!-- /shell -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════════════════════════
+let CFG  = {};
+let ttsOn = true;
+
+const lossHistory = [];
+const accHistory  = [];
+
+// ═══════════════════════════════════════════════════════════════════
+//  Init — FIX: retry until pywebview bridge is actually available
+// ═══════════════════════════════════════════════════════════════════
+function initApp() {
+  if (typeof window.pywebview === 'undefined' || !window.pywebview.api) {
+    setTimeout(initApp, 100);
+    return;
+  }
+  window.pywebview.api.get_config().then(cfg => {
+    CFG = cfg;
+    applyConfig(cfg);
+  });
+  window.pywebview.api.get_system_info().then(info => {
+    if (document.getElementById('sb-sysinfo')) document.getElementById('sb-sysinfo').innerHTML = 
+      `Python ${info.python}<br>OpenCV ${info.cv2}<br>MediaPipe ${info.mediapipe}<br>TF: ${info.tensorflow}`;
+    if (document.getElementById('model-badge')) document.getElementById('model-badge').textContent = 
+      'model: ' + (CFG.model_path || '').split(/[\\/]/).pop();
+    if (document.getElementById('tts-rate')) document.getElementById('tts-rate').textContent = CFG.tts_rate || 150;
+    if (document.getElementById('inf-thresh')) document.getElementById('inf-thresh').textContent = 
+      'threshold: ' + Math.round((CFG.confidence_threshold || 0.7) * 100) + '%';
+    setStatus('ready', false);
+  });
+}
+// Trigger both ways: event + delayed fallback
+window.addEventListener('pywebviewready', initApp);
+setTimeout(initApp, 300);
+
+// ═══════════════════════════════════════════════════════════════════
+//  Panel navigation
+// ═══════════════════════════════════════════════════════════════════
+function switchPanel(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  if (document.getElementById('panel-' + el.dataset.panel)) document.getElementById('panel-' + el.dataset.panel).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Config helpers
+// ═══════════════════════════════════════════════════════════════════
+function applyConfig(cfg) {
+  CFG = cfg;
+  // Collect cards
+  const grid = document.getElementById('collect-cards');
+  grid.innerHTML = (cfg.actions || []).map(a => `
+    <div class="cls-card" id="cls-${a}">
+      <div class="cls-letter">${a}</div>
+      <div class="cls-count" id="cls-count-${a}">0 / ${cfg.no_sequences}</div>
+      <div class="cls-bar"><div class="cls-bar-fill" id="cls-bar-${a}" style="width:0%"></div></div>
+    </div>`).join('');
+  // Class tags in settings
+  if (document.getElementById('class-tags')) document.getElementById('class-tags').innerHTML = 
+    (cfg.actions || []).map(a => `<div class="tag on">${a}</div>`).join('') +
+    `<div class="tag">+ add</div>`;
+  // Numeric fields
+  const map = {
+    'cfg-no_sequences':         cfg.no_sequences,
+    'cfg-sequence_length':      cfg.sequence_length,
+    'cfg-epochs':               cfg.epochs,
+    'cfg-tts_rate':             cfg.tts_rate,
+    'cfg-confidence_threshold': Math.round((cfg.confidence_threshold || 0.7) * 100),
+    'cfg-data_path':            cfg.data_path,
+    'cfg-model_path':           cfg.model_path,
+  };
+  Object.entries(map).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  });
+  setTTS(cfg.tts_enabled !== false);
+  buildConfBars(cfg.actions || []);
+}
+
+function loadSettings() {
+  window.pywebview.api.get_config().then(applyConfig);
+}
+
+function saveSettings() {
+  const getVal = (id) => (document.getElementById(id) || {}).value;
+  const cfg = {
+    no_sequences:          parseInt(getVal('cfg-no_sequences'))         || 30,
+    sequence_length:       parseInt(getVal('cfg-sequence_length'))      || 30,
+    epochs:                parseInt(getVal('cfg-epochs'))               || 2000,
+    tts_rate:              parseInt(getVal('cfg-tts_rate'))             || 150,
+    confidence_threshold:  (parseInt(getVal('cfg-confidence_threshold')) || 70) / 100,
+    data_path:             getVal('cfg-data_path'),
+    model_path:            getVal('cfg-model_path'),
+    tts_enabled:           ttsOn,
+  };
+  window.pywebview.api.save_config(cfg).then(() => {
+    Object.assign(CFG, cfg);
+    if (document.getElementById('model-badge')) document.getElementById('model-badge').textContent = 
+      'model: ' + cfg.model_path.split(/[\\/]/).pop();
+    if (document.getElementById('inf-thresh')) document.getElementById('inf-thresh').textContent = 
+      'threshold: ' + Math.round(cfg.confidence_threshold * 100) + '%';
+  });
+}
+
+function setTTS(on) {
+  ttsOn = on;
+  if (document.getElementById('tts-tag-on')) document.getElementById('tts-tag-on').classList.toggle('on', on);
+  if (document.getElementById('tts-tag-off')) document.getElementById('tts-tag-off').classList.toggle('on', !on);
+}
+
+function toggleTTS() {
+  setTTS(!ttsOn);
+  if (window.pywebview && window.pywebview.api)
+    window.pywebview.api.save_config({ tts_enabled: ttsOn });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Confidence bars — built dynamically per config.actions
+// ═══════════════════════════════════════════════════════════════════
+function buildConfBars(actions) {
+  if (document.getElementById('conf-bars')) document.getElementById('conf-bars').innerHTML = actions.map(a => `
+    <div class="conf-row">
+      <div class="conf-lbl">${a}</div>
+      <div class="conf-track"><div class="conf-fill" id="cf-${a}" style="width:0%"></div></div>
+      <div class="conf-pct" id="cp-${a}">0%</div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Camera helpers
+// ═══════════════════════════════════════════════════════════════════
+function showCam(imgId, phId, recId) {
+  if (document.getElementById(imgId)) document.getElementById(imgId).style.display = 'block';
+  if (document.getElementById(phId)) document.getElementById(phId).style.display = 'none';
+  if (document.getElementById(recId)) document.getElementById(recId).style.display = 'block';
+}
+function hideCam(imgId, phId, recId) {
+  const img = document.getElementById(imgId);
+  img.style.display = 'none';
+  img.src = '';
+  if (document.getElementById(phId)) document.getElementById(phId).style.display = 'flex';
+  if (document.getElementById(recId)) document.getElementById(recId).style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Pipeline actions
+// ═══════════════════════════════════════════════════════════════════
+function startCollect() {
+  if (!window.pywebview) return;
+  showCam('cam-collect', 'ph-collect', 'rec-collect');
+  setStatus('collecting…', true);
+  window.pywebview.api.start_collection();
+}
+
+function startTrain() {
+  if (!window.pywebview) return;
+  setStatus('training…', true);
+  lossHistory.length = 0; accHistory.length = 0;
+  refreshChart(lossChart, lossHistory);
+  refreshChart(accChart,  accHistory);
+  window.pywebview.api.start_training();
+}
+
+function startInfer() {
+  if (!window.pywebview) return;
+  showCam('cam-infer', 'ph-infer', 'rec-infer');
+  if (document.getElementById('pred-overlay')) document.getElementById('pred-overlay').style.display = 'block';
+  if (document.getElementById('sentence-overlay')) document.getElementById('sentence-overlay').style.display = 'block';
+  if (document.getElementById('tts-wave')) document.getElementById('tts-wave').classList.add('active');
+  setStatus('running…', true);
+  window.pywebview.api.start_inference();
+}
+
+function stopAll() {
+  if (!window.pywebview) return;
+  window.pywebview.api.stop();
+  hideCam('cam-collect', 'ph-collect', 'rec-collect');
+  hideCam('cam-infer',   'ph-infer',   'rec-infer');
+  if (document.getElementById('pred-overlay')) document.getElementById('pred-overlay').style.display = 'none';
+  if (document.getElementById('sentence-overlay')) document.getElementById('sentence-overlay').style.display = 'none';
+  if (document.getElementById('tts-wave')) document.getElementById('tts-wave').classList.remove('active');
+  setStatus('ready', false);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Status bar
+// ═══════════════════════════════════════════════════════════════════
+function setStatus(text, active) {
+  if (document.getElementById('status-text')) document.getElementById('status-text').textContent = text;
+  if (document.getElementById('status-dot')) document.getElementById('status-dot').classList.toggle('active', active);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Unified logger — FIX: writes to ALL console elements, not just active panel
+// ═══════════════════════════════════════════════════════════════════
+const SYM = { ok:'✓', warn:'!', error:'✕', info:'→' };
+
+function appendLog(consoleEl, ts, msg, level) {
+  // Clear "Waiting…" placeholder on first real log
+  if (consoleEl.querySelector('span[style]')) consoleEl.innerHTML = '';
+  const cls = `log-${level}`;
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="log-ts">[${ts}]</span> <span class="${cls}">${SYM[level] || '→'}</span> ${msg}`;
+  consoleEl.appendChild(div);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+window.addEventListener('sl:log', e => {
+  const { ts, msg, level } = e.detail;
+  // Write to every console — user can see the log regardless of active panel
+  document.querySelectorAll('.console').forEach(el => appendLog(el, ts, msg, level));
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  Chart.js setup
+// ═══════════════════════════════════════════════════════════════════
+function makeChart(canvasId, color) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        data: [],
+        borderColor: color,
+        borderWidth: 1.5,
+        tension: 0.4,
+        fill: false,
+        pointRadius: 0,
+      }]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: false },
+        y: {
+          grid:  { color: 'rgba(29,158,117,.06)' },
+          ticks: { color: '#3d544c', font: { family: "'IBM Plex Mono'", size: 9 }, maxTicksLimit: 4 },
+        }
+      }
+    }
+  });
+}
+
+const lossChart = makeChart('loss-chart', '#E24B4A');
+const accChart  = makeChart('acc-chart',  '#1D9E75');
+
+function refreshChart(chart, data) {
+  chart.data.labels          = data.map((_, i) => i);
+  chart.data.datasets[0].data = data.slice();
+  chart.update('none');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Event listeners
+// ═══════════════════════════════════════════════════════════════════
+
+// Collection
+window.addEventListener('sl:collect_progress', e => {
+  const { action, seq, total } = e.detail;
+  const pct  = Math.round(seq / total * 100);
+  const bar  = document.getElementById('cls-bar-' + action);
+  const cnt  = document.getElementById('cls-count-' + action);
+  const card = document.getElementById('cls-' + action);
+  if (bar)  bar.style.width  = pct + '%';
+  if (cnt)  cnt.textContent  = `${seq} / ${total}`;
+  document.querySelectorAll('.cls-card').forEach(c => c.classList.remove('recording'));
+  if (card) card.classList.add('recording');
+});
+
+window.addEventListener('sl:collect_done', () => {
+  hideCam('cam-collect', 'ph-collect', 'rec-collect');
+  if (document.getElementById('chk-collect')) document.getElementById('chk-collect').style.display = 'inline';
+  setStatus('collection done', false);
+});
+
+// Training
+window.addEventListener('sl:train_epoch', e => {
+  const { epoch, total, acc, loss } = e.detail;
+  if (document.getElementById('ep-val')) document.getElementById('ep-val').textContent = epoch.toLocaleString();
+  if (document.getElementById('ep-sub')) document.getElementById('ep-sub').textContent = `of ${total.toLocaleString()}`;
+  if (document.getElementById('acc-val')) document.getElementById('acc-val').textContent = acc + '%';
+  if (document.getElementById('loss-val')) document.getElementById('loss-val').textContent = loss;
+  const pct = (epoch / total * 100).toFixed(1);
+  if (document.getElementById('prog-fill')) document.getElementById('prog-fill').style.width = pct + '%';
+  if (document.getElementById('prog-pct')) document.getElementById('prog-pct').textContent = pct + '%';
+  if (document.getElementById('prog-mid')) document.getElementById('prog-mid').textContent = `Epoch ${epoch}/${total}`;
+  if (document.getElementById('prog-max')) document.getElementById('prog-max').textContent = total.toLocaleString();
+
+  // Keep chart data trimmed to last 300 points for performance
+  if (lossHistory.length >= 300) { lossHistory.shift(); accHistory.shift(); }
+  lossHistory.push(loss);
+  accHistory.push(acc);
+  refreshChart(lossChart, lossHistory);
+  refreshChart(accChart,  accHistory);
+});
+
+window.addEventListener('sl:train_done', () => {
+  if (document.getElementById('chk-train')) document.getElementById('chk-train').style.display = 'inline';
+  setStatus('training done', false);
+});
+
+// Inference
+window.addEventListener('sl:infer_result', e => {
+  const { predicted, confidences, sentence } = e.detail;
+
+  if (predicted) {
+    if (document.getElementById('pred-overlay')) document.getElementById('pred-overlay').textContent = predicted;
+    if (document.getElementById('inf-pred')) document.getElementById('inf-pred').textContent = predicted;
+    if (document.getElementById('tts-word')) document.getElementById('tts-word').textContent = predicted;
+  }
+  if (sentence !== undefined) {
+    if (document.getElementById('sentence-overlay')) document.getElementById('sentence-overlay').textContent = sentence || '–';
+    if (document.getElementById('inf-sentence')) document.getElementById('inf-sentence').textContent = sentence || '–';
+  }
+
+  let topConf = 0;
+  if (confidences) {
+    Object.entries(confidences).forEach(([cls, pct]) => {
+      const fill = document.getElementById('cf-' + cls);
+      const pctEl = document.getElementById('cp-' + cls);
+      if (fill)  fill.style.width  = Math.min(pct, 100) + '%';
+      if (pctEl) pctEl.textContent = pct + '%';
+      if (pct > topConf) topConf = pct;
+    });
+  }
+  if (document.getElementById('inf-conf')) document.getElementById('inf-conf').textContent = topConf.toFixed(1) + '%';
+});
+
+window.addEventListener('sl:infer_stopped', () => {
+  hideCam('cam-infer', 'ph-infer', 'rec-infer');
+  if (document.getElementById('tts-wave')) document.getElementById('tts-wave').classList.remove('active');
+  setStatus('ready', false);
+});
+</script>
+</body>
+</html>
