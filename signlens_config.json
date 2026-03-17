@@ -1,0 +1,15 @@
+{
+  "actions": [
+    "A",
+    "B",
+    "C"
+  ],
+  "no_sequences": 30,
+  "sequence_length": 30,
+  "data_path": "D:\\project\\Ai_sign language\\files\\MP_Data",
+  "model_path": "D:\\project\\Ai_sign language\\files\\action.h5",
+  "confidence_threshold": 0.7,
+  "epochs": 2000,
+  "tts_rate": 150,
+  "tts_enabled": true
+}

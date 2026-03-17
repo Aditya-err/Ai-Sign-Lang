@@ -722,6 +722,11 @@ function refreshChart(chart, data) {
 // ═══════════════════════════════════════════════════════════════════
 
 // Collection
+window.addEventListener('sl:collect_started', () => {
+  showCam('cam-collect', 'ph-collect', 'rec-collect');
+  setStatus('collecting…', true);
+});
+
 window.addEventListener('sl:collect_progress', e => {
   const { action, seq, total } = e.detail;
   const pct  = Math.round(seq / total * 100);

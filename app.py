@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 """
 SignLens AI  ·  PyWebView Desktop App
 ======================================
@@ -23,32 +24,54 @@ import time
 import base64
 import queue
 import threading
+from typing import Any, Optional, Dict, List
+import pathlib
 
-import cv2
-import numpy as np
-import webview
+import cv2  # type: ignore
+import numpy as np  # type: ignore
+import webview  # type: ignore
 
 # ── Paths always relative to THIS file, not CWD ──────────────────────────────
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 INDEX_HTML  = os.path.join(BASE_DIR, "index.html")
+# pywebview 6.x on Windows requires a proper file:// URI (forward slashes)
+# Raw backslash paths cause ERR_INSUFFICIENT_RESOURCES in Edge WebView2
+INDEX_URL   = pathlib.Path(INDEX_HTML).as_uri()   # e.g. file:///D:/project/.../index.html
 CONFIG_FILE = os.path.join(BASE_DIR, "signlens_config.json")
 
 
 # ── Optional heavy imports (graceful fallback) ────────────────────────────────
+MP_AVAILABLE = False
+mp_holistic: Any = None
+mp_drawing: Any = None
+
 try:
-    import mediapipe as mp
-    mp_holistic = mp.solutions.holistic
-    mp_drawing  = mp.solutions.drawing_utils
-    MP_AVAILABLE = True
-except ImportError:
+    import mediapipe as mp  # type: ignore
+
+    # mediapipe < 0.10 uses mp.solutions.*
+    # mediapipe >= 0.10 on Python >=3.12 removed solutions in some builds.
+    # Try the classic solutions path first, then the new tasks path.
+    if hasattr(mp, 'solutions') and hasattr(mp.solutions, 'holistic'):
+        mp_holistic = mp.solutions.holistic
+        mp_drawing  = mp.solutions.drawing_utils
+        MP_AVAILABLE = True
+    else:
+        # New mediapipe API does not expose holistic via mp.solutions.
+        # Fall back to simulation mode but keep cv2 available.
+        print("[SignLens] MediaPipe installed but 'solutions.holistic' unavailable "
+              "(likely mediapipe>=0.10 on Python 3.12/3.13). Running in simulation mode.")
+        MP_AVAILABLE = False
+
+except (ImportError, AttributeError, Exception) as _mp_err:
+    print(f"[SignLens] MediaPipe not available ({_mp_err}). Running in simulation mode.")
     MP_AVAILABLE = False
 
 try:
-    from tensorflow.keras.models import Sequential, load_model
-    from tensorflow.keras.layers import LSTM, Dense
-    from tensorflow.keras.callbacks import Callback, EarlyStopping
-    from tensorflow.keras.utils import to_categorical
-    from sklearn.model_selection import train_test_split
+    from tensorflow.keras.models import Sequential, load_model  # type: ignore
+    from tensorflow.keras.layers import LSTM, Dense  # type: ignore
+    from tensorflow.keras.callbacks import Callback, EarlyStopping  # type: ignore
+    from tensorflow.keras.utils import to_categorical  # type: ignore
+    from sklearn.model_selection import train_test_split  # type: ignore
     TF_AVAILABLE = True
 except ImportError:
     TF_AVAILABLE = False
@@ -58,7 +81,7 @@ TTS_AVAILABLE = False
 _tts_q: queue.Queue = queue.Queue()
 
 try:
-    import pyttsx3
+    import pyttsx3  # type: ignore
     _tts_engine = pyttsx3.init()
     _tts_engine.setProperty("rate", 150)
     TTS_AVAILABLE = True
@@ -97,7 +120,7 @@ def speak(text: str):
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
-DEFAULT_CONFIG: dict = {
+DEFAULT_CONFIG: Dict[str, Any] = {
     "actions":              ["A", "B", "C"],
     "no_sequences":         30,
     "sequence_length":      30,
@@ -151,7 +174,7 @@ def extract_keypoints(results) -> np.ndarray:
 
 
 def draw_landmarks(image, results):
-    if not MP_AVAILABLE:
+    if not MP_AVAILABLE or mp_drawing is None or mp_holistic is None:
         return image
     spec_pt = mp_drawing.DrawingSpec(color=(0, 255, 180), thickness=1, circle_radius=2)
     spec_ln = mp_drawing.DrawingSpec(color=(0, 200, 140), thickness=1)
@@ -174,7 +197,7 @@ class SignLensAPI:
         self.window: webview.Window | None = None
         self.config  = load_config()
         self._stop   = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._thread: Optional[threading.Thread] = None
 
     # ── Transport ─────────────────────────────────────────────────────────────
 
@@ -210,23 +233,23 @@ class SignLensAPI:
 
     def _stop_thread(self):
         self._stop.set()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=4)
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout=4.0)
         self._stop.clear()
 
     # ── Config ────────────────────────────────────────────────────────────────
 
-    def get_config(self) -> dict:
+    def get_config(self) -> Dict[str, Any]:
         return self.config
 
-    def save_config(self, cfg: dict) -> dict:
+    def save_config(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
         self.config.update(cfg)
         save_config_to_disk(self.config)
         if TTS_AVAILABLE and "tts_rate" in cfg:
             _tts_engine.setProperty("rate", int(cfg["tts_rate"]))
         return {"ok": True}
 
-    def get_system_info(self) -> dict:
+    def get_system_info(self) -> Dict[str, Any]:
         return {
             "python":     sys.version.split()[0],
             "cv2":        cv2.__version__,
@@ -237,11 +260,12 @@ class SignLensAPI:
 
     # ── Data Collection ───────────────────────────────────────────────────────
 
-    def start_collection(self) -> dict:
+    def start_collection(self) -> Dict[str, Any]:
         self._stop_thread()
         self._thread = threading.Thread(
             target=self._collect_loop, daemon=True, name="collect")
-        self._thread.start()
+        if self._thread is not None:
+            self._thread.start()
         return {"ok": True}
 
     def _collect_loop(self):
@@ -255,17 +279,18 @@ class SignLensAPI:
             for seq in range(n_seq):
                 os.makedirs(os.path.join(data_path, action, str(seq)), exist_ok=True)
 
-        if not MP_AVAILABLE:
+        if not MP_AVAILABLE or mp_drawing is None or mp_holistic is None:
             self._log("MediaPipe not installed — demo mode.", "warn")
             self._simulate_collection(actions, n_seq)
             return
 
         cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
+        if cap is None or not cap.isOpened():
             self._log("Camera not found! Is another app using it?", "error")
             self._emit("sl:collect_done", {"success": False})
             return
 
+        self._emit("sl:collect_started", {})
         try:
             with mp_holistic.Holistic(min_detection_confidence=0.5,
                                       min_tracking_confidence=0.5) as holistic:
@@ -320,24 +345,117 @@ class SignLensAPI:
         self._emit("sl:collect_done", {"success": True})
 
     def _simulate_collection(self, actions, n_seq):
-        for action in actions:
-            for seq in range(n_seq):
+        """
+        Demo mode: open the real webcam (or render a blank frame with cv2 text)
+        so the camera panel shows live video and progress exactly like real collection.
+        """
+        seq_len = int(self.config.get("sequence_length", 30))
+
+        # Try to open a real camera first; if none, build synthetic frames
+        cap = cv2.VideoCapture(0)
+        use_real_cam = cap.isOpened()
+        if not use_real_cam:
+            cap.release()
+            cap = None
+            self._log("[Demo] No webcam — rendering synthetic frames.", "warn")
+        else:
+            self._log("[Demo] Webcam open — running collection demo.", "info")
+
+        self._emit("sl:collect_started", {})
+
+        try:
+            for action in actions:
                 if self._stop.is_set():
-                    return
-                time.sleep(0.04)
-                self._emit("sl:collect_progress", {
-                    "action": action, "seq": seq + 1, "total": n_seq
-                })
-            self._log(f"[Demo] '{action}' — {n_seq} seqs simulated.", "ok")
+                    break
+
+                # ── 2-second countdown pause ──────────────────────────
+                pause_end = time.time() + 2.0
+                while time.time() < pause_end and not self._stop.is_set():
+                    frame = self._demo_frame(cap, f"GET READY  [ {action} ]",
+                                             sub="Preparing sequence 1…",
+                                             color=(0, 180, 120))
+                    self._push_frame(frame_to_b64(frame), "cam-collect")
+                    time.sleep(0.033)  # ~30 fps
+
+                for seq in range(n_seq):
+                    if self._stop.is_set():
+                        break
+
+                    self._log(f"[Demo] Collecting '{action}'  [{seq+1}/{n_seq}]", "info")
+                    self._emit("sl:collect_progress", {
+                        "action": action, "seq": seq + 1, "total": n_seq
+                    })
+
+                    # ── Collect seq_len frames ────────────────────────
+                    for fn in range(seq_len):
+                        if self._stop.is_set():
+                            break
+                        frame = self._demo_frame(cap,
+                                                 f"{action}  frame {fn+1}/{seq_len}",
+                                                 sub=f"Sequence {seq+1} / {n_seq}",
+                                                 color=(0, 220, 140))
+                        self._push_frame(frame_to_b64(frame), "cam-collect")
+                        time.sleep(0.033)
+
+                    # Short pause between sequences
+                    if seq < n_seq - 1:
+                        pause_end = time.time() + 1.0
+                        while time.time() < pause_end and not self._stop.is_set():
+                            frame = self._demo_frame(cap,
+                                                     f"NEXT  [ {action} ]",
+                                                     sub=f"Seq {seq+2} of {n_seq} next…",
+                                                     color=(0, 140, 100))
+                            self._push_frame(frame_to_b64(frame), "cam-collect")
+                            time.sleep(0.033)
+
+                self._log(f"[Demo] '{action}' — {n_seq} seqs complete.", "ok")
+
+        finally:
+            if cap is not None and cap.isOpened():
+                cap.release()
+
         self._emit("sl:collect_done", {"success": True})
+
+    def _demo_frame(self, cap, label: str, sub: str = "", color=(0, 200, 130)):
+        """Return a cv2 frame — real cam frame if available, else synthetic black canvas."""
+        if cap is not None and cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        else:
+            frame = np.zeros((480, 640, 3), dtype=np.uint8)
+
+        # Overlay bar at top
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (frame.shape[1], 52), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+        # Draw dot pattern to simulate landmarks in demo
+        if cap is None or not cap.isOpened():
+            import random
+            for _ in range(40):
+                x = random.randint(150, 490)
+                y = random.randint(80, 430)
+                cv2.circle(frame, (x, y), 3, color, -1)
+
+        # Main label
+        cv2.putText(frame, label, (12, 32),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2, cv2.LINE_AA)
+        # Sub label
+        if sub:
+            cv2.putText(frame, sub, (12, 48),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1, cv2.LINE_AA)
+        return frame
+
 
     # ── Training ──────────────────────────────────────────────────────────────
 
-    def start_training(self) -> dict:
+    def start_training(self) -> Dict[str, Any]:
         self._stop_thread()
         self._thread = threading.Thread(
             target=self._train_loop, daemon=True, name="train")
-        self._thread.start()
+        if self._thread is not None:
+            self._thread.start()
         return {"ok": True}
 
     def _train_loop(self):
@@ -400,8 +518,8 @@ class SignLensAPI:
                 api_ref._emit("sl:train_epoch", {
                     "epoch": epoch + 1,
                     "total": epochs,
-                    "acc":   round(acc * 100, 2),
-                    "loss":  round(loss, 5),
+                    "acc":   round(float(acc * 100), 2),
+                    "loss":  round(float(loss), 5),
                 })
                 if (epoch + 1) % 100 == 0:
                     api_ref._log(
@@ -431,8 +549,8 @@ class SignLensAPI:
             if ep % 5 == 0:
                 self._emit("sl:train_epoch", {
                     "epoch": ep, "total": epochs,
-                    "acc":   round(acc * 100, 2),
-                    "loss":  round(loss, 5),
+                    "acc":   round(float(acc * 100), 2),
+                    "loss":  round(float(loss), 5),
                 })
             if ep % 200 == 0:
                 self._log(
@@ -444,11 +562,12 @@ class SignLensAPI:
 
     # ── Inference ─────────────────────────────────────────────────────────────
 
-    def start_inference(self) -> dict:
+    def start_inference(self) -> Dict[str, Any]:
         self._stop_thread()
         self._thread = threading.Thread(
             target=self._infer_loop, daemon=True, name="infer")
-        self._thread.start()
+        if self._thread is not None:
+            self._thread.start()
         return {"ok": True}
 
     def _infer_loop(self):
@@ -476,7 +595,7 @@ class SignLensAPI:
         predictions: list = []
 
         cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
+        if cap is None or not cap.isOpened():
             self._log("Camera not found!", "error")
             self._emit("sl:infer_stopped", {})
             return
@@ -505,10 +624,10 @@ class SignLensAPI:
                         top_idx   = int(np.argmax(res))
                         predicted = actions[top_idx]
                         confidences = {
-                            actions[i]: round(float(res[i]) * 100, 1)
+                            actions[i]: round(float(float(res[i]) * 100), 1)
                             for i in range(len(actions))
                         }
-                        predictions.append(top_idx)
+                        predictions.append(int(top_idx))
                         predictions = predictions[-20:]
 
                         if (len(predictions) >= 10
@@ -539,13 +658,13 @@ class SignLensAPI:
 
     def _simulate_inference(self, actions):
         import random
-        sentence: list = []
+        sentence: List[str] = []
         while not self._stop.is_set():
             pred   = random.choice(actions)
             raw    = {a: random.uniform(0, 10) for a in actions}
             raw[pred] = random.uniform(60, 95)
             total  = sum(raw.values())
-            confs  = {k: round(v / total * 100, 1) for k, v in raw.items()}
+            confs  = {k: round(float(v / total * 100), 1) for k, v in raw.items()}
             if not sentence or sentence[-1] != pred:
                 sentence = (sentence + [pred])[-5:]
             self._emit("sl:infer_result", {
@@ -557,7 +676,7 @@ class SignLensAPI:
 
     # ── Stop ──────────────────────────────────────────────────────────────────
 
-    def stop(self) -> dict:
+    def stop(self) -> Dict[str, Any]:
         self._stop_thread()
         self._log("Stopped.", "info")
         return {"ok": True}
@@ -567,14 +686,12 @@ class SignLensAPI:
 if __name__ == "__main__":
     api    = SignLensAPI()
     window = webview.create_window(
-        title        = "SignLens AI",
-        url          = INDEX_HTML,       # absolute path — works from any CWD
-        js_api       = api,
-        width        = 1140,
-        height       = 720,
-        min_size     = (900, 600),
-        resizable    = True,
-        private_mode = False,
+        title     = "SignLens AI",
+        url       = INDEX_URL,       # file:// URI — Edge WebView2 requires forward slashes
+        js_api    = api,
+        width     = 1140,
+        height    = 720,
+        resizable = True,
     )
     api.window = window
 
