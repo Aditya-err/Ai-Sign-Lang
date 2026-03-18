@@ -86,15 +86,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--tx0);fon
 .mcard-val.teal{color:var(--teal)}
 .mcard-sub{font-size:10px;color:var(--tx3);margin-top:4px}
 
-/* ── Camera ──────────────────────────────────────────────────────────────── */
+/* ── Camera & Output Layout ────────────────────────────────────────────── */
 .cam-wrap{
-  background:var(--bg1);border:.5px solid var(--bdr);border-radius:var(--rlg);
-  overflow:hidden;position:relative;flex-shrink:0;
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%;
 }
-.cam-wrap img{width:100%;height:100%;object-fit:cover;display:none}
+.cam-box, .out-box{
+  background:var(--bg1);border:.5px solid var(--bdr);border-radius:var(--rlg);
+  position:relative;aspect-ratio:1/1;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.cam-box img{width:100%;height:100%;object-fit:cover;display:none;position:absolute;inset:0}
 .cam-placeholder{
   width:100%;height:100%;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:10px;color:var(--tx3);position:absolute;inset:0;
+  justify-content:center;gap:10px;color:var(--tx3);z-index:1;
 }
 .cam-icon{width:52px;height:38px;border:1.5px solid var(--tx3);border-radius:5px;position:relative}
 .cam-icon::after{
@@ -102,27 +106,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--tx0);fon
   position:absolute;inset:0;margin:auto;
 }
 .cam-placeholder span{font-size:11px}
-.corner{position:absolute;width:18px;height:18px;border-color:var(--teal);border-style:solid;border-width:0}
-.corner.tl{top:8px;left:8px;border-top-width:2px;border-left-width:2px}
-.corner.tr{top:8px;right:8px;border-top-width:2px;border-right-width:2px}
-.corner.bl{bottom:8px;left:8px;border-bottom-width:2px;border-left-width:2px}
-.corner.br{bottom:8px;right:8px;border-bottom-width:2px;border-right-width:2px}
+.corner{position:absolute;width:18px;height:18px;border-color:var(--teal);border-style:solid;border-width:0;z-index:5}
+.corner.tl{top:12px;left:12px;border-top-width:2px;border-left-width:2px}
+.corner.tr{top:12px;right:12px;border-top-width:2px;border-right-width:2px}
+.corner.bl{bottom:12px;left:12px;border-bottom-width:2px;border-left-width:2px}
+.corner.br{bottom:12px;right:12px;border-bottom-width:2px;border-right-width:2px}
 .rec-dot{
-  position:absolute;top:10px;left:10px;width:8px;height:8px;
-  border-radius:50%;background:#E24B4A;display:none;
+  position:absolute;top:14px;left:14px;width:8px;height:8px;
+  border-radius:50%;background:#E24B4A;display:none;z-index:6;
   box-shadow:0 0 0 2px rgba(226,75,74,.3);animation:pulse 1.2s infinite;
 }
-.pred-overlay{
-  position:absolute;top:12px;left:50%;transform:translateX(-50%);
-  background:rgba(11,15,13,.82);border:.5px solid var(--teal);border-radius:20px;
-  padding:4px 20px;font-family:var(--display);font-size:22px;font-weight:800;
-  color:var(--teal);letter-spacing:3px;display:none;
+.out-box{background:var(--bg2)}
+.out-box .sec-lbl{position:absolute;top:16px;left:16px;font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px}
+
+#pred-overlay{
+  font-family:var(--display);font-size:110px;font-weight:800;
+  color:var(--teal);line-height:1;margin-top:-10px;
 }
-.sentence-overlay{
-  position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
-  background:rgba(11,15,13,.75);border:.5px solid var(--bdr2);border-radius:var(--rsm);
-  padding:5px 16px;font-size:13px;color:var(--tx0);white-space:nowrap;
-  max-width:90%;overflow:hidden;text-overflow:ellipsis;display:none;
+#out-conf{font-size:16px;color:var(--tx2);margin-top:10px;font-family:var(--mono)}
+#sentence-overlay{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(29, 158, 117, 0.05);border-top:.5px solid var(--bdr);
+  padding:14px;font-size:14px;color:var(--tx0);white-space:nowrap;
+  text-align:center;overflow:hidden;text-overflow:ellipsis;
 }
 
 /* ── Confidence bars ─────────────────────────────────────────────────────── */
@@ -274,15 +280,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--tx0);fon
           <div class="stage-badge">STEP 01 / 03</div>
         </div>
         <div class="collect-grid" id="collect-cards"></div>
-        <div class="cam-wrap" style="height:200px">
-          <div class="cam-placeholder" id="ph-collect">
-            <div class="cam-icon"></div>
-            <span>Camera inactive — press Start Collection</span>
+        <div class="cam-wrap">
+          <div class="cam-box">
+            <div class="cam-placeholder" id="ph-collect">
+              <div class="cam-icon"></div>
+              <span>Camera inactive — press Start Collection</span>
+            </div>
+            <img id="cam-collect" alt=""/>
+            <div class="rec-dot" id="rec-collect"></div>
+            <div class="corner tl"></div><div class="corner tr"></div>
+            <div class="corner bl"></div><div class="corner br"></div>
           </div>
-          <img id="cam-collect" alt=""/>
-          <div class="rec-dot" id="rec-collect"></div>
-          <div class="corner tl"></div><div class="corner tr"></div>
-          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="out-box">
+             <div class="sec-lbl">Pipeline Status</div>
+             <div class="cam-placeholder" style="color:var(--tx2)">
+               <span>Ready for capture</span>
+             </div>
+          </div>
         </div>
         <div class="console" id="log-collect"><span style="color:var(--tx3)">Waiting for system…</span></div>
         <div class="action-row">
@@ -350,17 +364,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--tx0);fon
           </div>
           <div class="stage-badge">STEP 03 / 03</div>
         </div>
-        <div class="cam-wrap" style="height:220px;background:#060908">
-          <div class="cam-placeholder" id="ph-infer">
-            <div class="cam-icon"></div>
-            <span>Press Start Camera</span>
+        <div class="cam-wrap">
+          <div class="cam-box">
+            <div class="cam-placeholder" id="ph-infer">
+              <div class="cam-icon"></div>
+              <span>Press Start Camera</span>
+            </div>
+            <img id="cam-infer" alt=""/>
+            <div class="rec-dot" id="rec-infer"></div>
+            <div class="corner tl"></div><div class="corner tr"></div>
+            <div class="corner bl"></div><div class="corner br"></div>
           </div>
-          <img id="cam-infer" alt=""/>
-          <div class="pred-overlay" id="pred-overlay"></div>
-          <div class="sentence-overlay" id="sentence-overlay"></div>
-          <div class="rec-dot" id="rec-infer"></div>
-          <div class="corner tl"></div><div class="corner tr"></div>
-          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="out-box">
+            <div class="sec-lbl">Output Display</div>
+            <div id="pred-overlay">–</div>
+            <div id="out-conf">0.0%</div>
+            <div id="sentence-overlay">–</div>
+          </div>
         </div>
         <div class="conf-box">
           <div class="conf-title">Class Confidence</div>
@@ -796,6 +816,7 @@ window.addEventListener('sl:infer_result', e => {
     });
   }
   if (document.getElementById('inf-conf')) document.getElementById('inf-conf').textContent = topConf.toFixed(1) + '%';
+  if (document.getElementById('out-conf')) document.getElementById('out-conf').textContent = topConf.toFixed(1) + '%';
 });
 
 window.addEventListener('sl:infer_stopped', () => {
