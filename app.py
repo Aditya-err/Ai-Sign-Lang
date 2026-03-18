@@ -208,11 +208,14 @@ class SignLensAPI:
         """
         if not self.window:
             return
-        b64 = base64.b64encode(json.dumps(payload).encode()).decode()
-        self.window.evaluate_js(
-            f"window.dispatchEvent(new CustomEvent('{event_type}',"
-            f"{{detail:JSON.parse(atob('{b64}'))}}));"
-        )
+        try:
+            b64 = base64.b64encode(json.dumps(payload).encode()).decode()
+            self.window.evaluate_js(
+                f"window.dispatchEvent(new CustomEvent('{event_type}',"
+                f"{{detail:JSON.parse(atob('{b64}'))}}));"
+            )
+        except Exception:
+            pass  # Window closed?
 
     def _log(self, msg: str, level: str = "info"):
         self._emit("sl:log", {
@@ -223,13 +226,18 @@ class SignLensAPI:
 
     def _push_frame(self, b64: str, cam_id: str):
         """Set a specific <img> element src without escaping issues."""
-        # Use a JS data attribute so the long b64 string never goes through evaluate_js string concat
-        self.window.evaluate_js(
-            f"(function(){{"
-            f"var el=document.getElementById('{cam_id}');"
-            f"if(el)el.src='data:image/jpeg;base64,{b64}';"
-            f"}})();"
-        )
+        if not self.window:
+            return
+        try:
+            # Use a JS data attribute so the long b64 string never goes through evaluate_js string concat
+            self.window.evaluate_js(
+                f"(function(){{"
+                f"var el=document.getElementById('{cam_id}');"
+                f"if(el)el.src='data:image/jpeg;base64,{b64}';"
+                f"}})();"
+            )
+        except Exception:
+            pass # Window closed?
 
     def _stop_thread(self):
         self._stop.set()
@@ -702,5 +710,10 @@ if __name__ == "__main__":
         api._log(f"TTS: {info['tts']}", "info")
         api._log("SignLens AI ready.", "ok")
 
+    def on_closing():
+        api._stop_thread()
+        api.window = None
+
     window.events.loaded += on_loaded
+    window.events.closing += on_closing
     webview.start(debug=False)
